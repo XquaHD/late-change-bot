@@ -1,0 +1,51 @@
+name: AFLW Late Change Monitor
+
+on:
+  schedule:
+    # Every 5 minutes (GitHub's minimum granularity - actual runs can lag
+    # a few extra minutes during busy periods, that's a GitHub limitation
+    # not something this workflow controls).
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {} # lets you manually trigger a run from the Actions tab
+
+permissions:
+  contents: write # needed so the workflow can commit state.json back
+
+concurrency:
+  group: aflw-late-change-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run monitor
+        env:
+          TWITTER_USERNAME: ${{ vars.TWITTER_USERNAME }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TWSCRAPE_AUTH_TOKEN: ${{ secrets.TWSCRAPE_AUTH_TOKEN }}
+          TWSCRAPE_CT0: ${{ secrets.TWSCRAPE_CT0 }}
+          KEYWORDS: ${{ vars.KEYWORDS }}
+          PING_TARGET: ${{ vars.PING_TARGET }}
+          CHECK_COUNT: ${{ vars.CHECK_COUNT }}
+          RUN_MODE: once
+        run: python3 monitor.py
+
+      - name: Commit updated state
+        run: |
+          git config user.name "aflw-late-change-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add state.json
+          git diff --quiet --cached || git commit -m "Update state.json [skip ci]"
+          git push
