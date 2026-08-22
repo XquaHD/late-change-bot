@@ -24,14 +24,24 @@ from fetch_tweets import get_recent_tweets, Tweet
 # Configuration (all overridable via environment variables)
 # ---------------------------------------------------------------------------
 
-TWITTER_USERNAME = os.environ.get("TWITTER_USERNAME", "aflwomens")
-DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
+def env(name: str, default: str) -> str:
+    """
+    Like os.environ.get, but also falls back to the default when the
+    variable is set but empty - which is what GitHub Actions does for
+    unset repo Variables referenced in a workflow's `env:` block.
+    """
+    value = os.environ.get(name)
+    return value if value else default
+
+
+TWITTER_USERNAME = env("TWITTER_USERNAME", "aflwomens")
+DISCORD_WEBHOOK_URL = env("DISCORD_WEBHOOK_URL", "")
 
 # Comma-separated list of keywords; a tweet matches if it contains ANY of
 # these (case-insensitive). Adjust to taste, e.g. "late change,team change".
 KEYWORDS = [
     k.strip().lower()
-    for k in os.environ.get("KEYWORDS", "late change").split(",")
+    for k in env("KEYWORDS", "late change").split(",")
     if k.strip()
 ]
 
@@ -39,17 +49,17 @@ KEYWORDS = [
 #   "everyone"        -> @everyone
 #   "role:ROLE_ID"     -> ping a specific role by ID, e.g. role:123456789012345678
 #   "none"             -> no ping, just post the message
-PING_TARGET = os.environ.get("PING_TARGET", "everyone")
+PING_TARGET = env("PING_TARGET", "everyone")
 
 # How many of the most recent tweets to look at each poll (only needs to be
 # large enough to cover the gap between polls).
-CHECK_COUNT = int(os.environ.get("CHECK_COUNT", "20"))
+CHECK_COUNT = int(env("CHECK_COUNT", "20"))
 
 # Only used when running as a persistent loop (RUN_MODE=loop).
-POLL_INTERVAL_SECONDS = int(os.environ.get("POLL_INTERVAL_SECONDS", "120"))
-RUN_MODE = os.environ.get("RUN_MODE", "once")  # "once" or "loop"
+POLL_INTERVAL_SECONDS = int(env("POLL_INTERVAL_SECONDS", "120"))
+RUN_MODE = env("RUN_MODE", "once")  # "once" or "loop"
 
-STATE_FILE = os.environ.get("STATE_FILE", "state.json")
+STATE_FILE = env("STATE_FILE", "state.json")
 
 
 # ---------------------------------------------------------------------------
