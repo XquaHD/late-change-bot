@@ -51,6 +51,16 @@ KEYWORDS = [
 #   "none"             -> no ping, just post the message
 PING_TARGET = env("PING_TARGET", "everyone")
 
+# Comma-separated list of phrases; if a matched tweet contains ANY of these
+# (case-insensitive), it still gets posted to Discord but WITHOUT a ping -
+# e.g. "No late changes" announcements are worth seeing but don't need to
+# wake anyone up.
+NO_PING_KEYWORDS = [
+    k.strip().lower()
+    for k in env("NO_PING_KEYWORDS", "no late changes").split(",")
+    if k.strip()
+]
+
 # How many of the most recent tweets to look at each poll (only needs to be
 # large enough to cover the gap between polls).
 CHECK_COUNT = int(env("CHECK_COUNT", "20"))
@@ -93,6 +103,11 @@ def is_late_change(tweet: Tweet) -> bool:
     return any(keyword in text_lower for keyword in KEYWORDS)
 
 
+def should_skip_ping(tweet: Tweet) -> bool:
+    text_lower = tweet.text.lower()
+    return any(phrase in text_lower for phrase in NO_PING_KEYWORDS)
+
+
 # ---------------------------------------------------------------------------
 # Discord
 # ---------------------------------------------------------------------------
@@ -107,14 +122,20 @@ def build_ping_content() -> tuple[str, dict]:
     return "", {"parse": []}
 
 
-def post_to_discord(tweet: Tweet) -> bool:
+def post_to_discord(tweet: Tweet, ping: bool = True) -> bool:
     if not DISCORD_WEBHOOK_URL:
         print("[monitor] DISCORD_WEBHOOK_URL not set - skipping post, printing instead:")
         print(tweet.text, tweet.url)
         return False
 
-    mention, allowed_mentions = build_ping_content()
-    content = f"{mention} \U0001F6A8 **Late Change** from @{TWITTER_USERNAME}\n{tweet.text}\n{tweet.url}".strip()
+    if ping:
+        mention, allowed_mentions = build_ping_content()
+        label = "\U0001F6A8 **Late Change**"
+    else:
+        mention, allowed_mentions = "", {"parse": []}
+        label = "**Late Change Update**"
+
+    content = f"{mention} {label} from @{TWITTER_USERNAME}\n{tweet.text}\n{tweet.url}".strip()
 
     payload = {
         "content": content,
@@ -176,7 +197,7 @@ def run_once() -> None:
 
     for t in new_tweets:
         if is_late_change(t):
-            post_to_discord(t)
+            post_to_discord(t, ping=not should_skip_ping(t))
         state["last_seen_id"] = t.id
         save_state(state)
 
